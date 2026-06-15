@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <title>Alerts | SSF West Bengal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+  <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+
+  <link rel="stylesheet" href="style.css">
+  
+  <style>
+    .ql-toolbar.ql-snow { border-radius: 1rem 1rem 0 0; border-color: #e2e8f0; background: #f8fafc; padding: 12px; }
+    .ql-container.ql-snow { border-radius: 0 0 1rem 1rem; border-color: #e2e8f0; min-height: 200px; font-size: 14px; background: #ffffff; }
+    .ql-editor img { border-radius: 0.75rem; max-width: 100%; margin: 10px 0; }
+    .ql-editor iframe.ql-video { border-radius: 0.75rem; width: 100%; height: 280px; margin: 10px 0; }
+    .ql-editor { padding: 1.25rem; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col antialiased">
+  
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm transition-opacity">
+      <div class="bg-white rounded-2xl p-6 w-[90%] max-w-sm shadow-xl border border-slate-200 animate-fade-in-up">
+          <div class="flex flex-col items-center text-center">
+              <div class="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 mb-4 shadow-inner">
+                  <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+              </div>
+              <h3 class="text-lg font-black text-slate-900 mb-1">Revoke Transmission?</h3>
+              <p class="text-xs text-slate-500 font-medium mb-6">This action will permanently drop and wipe this historical transmission row. It cannot be undone.</p>
+              <div class="flex gap-3 w-full">
+                  <button onclick="closeDeleteModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs py-2.5 rounded-xl transition-colors font-mono uppercase tracking-wider">Cancel</button>
+                  <button onclick="confirmDeleteDirective()" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition-colors font-mono uppercase tracking-wider">Yes, Wipe It</button>
+              </div>
+          </div>
+      </div>
+  </div>
+
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+  <div id="globalLoader" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm transition-opacity">
+    <div class="animate-spin rounded-full h-12 w-12 border-4 border-emerald-600 border-t-transparent mb-3 shadow-lg"></div>
+    <p id="globalLoaderText" class="text-xs font-black tracking-widest text-slate-500 uppercase font-mono">Syncing Broadcasts...</p>
+  </div>
+
+  <header class="bg-white border-b border-slate-200/60 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-[1400px] mx-auto px-4 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-cooper bg-emerald-600 text-white px-2.5 py-1 rounded-md shadow-inner">SSF</span>
+        <span class="text-xs font-black tracking-tight text-slate-800 hidden sm:inline-block">West Bengal Committee</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1">
+          <div class="flex flex-col text-right">
+            <span id="sessionUserBadge" class="text-[11px] font-bold leading-none">-</span>
+            <span id="sessionRoleTag" class="text-[8px] font-black text-slate-400 uppercase mt-0.5 font-mono">-</span>
+          </div>
+        </div>
+        <button onclick="executeSecureLogout()" class="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl text-xs transition-all"><i class="fa-solid fa-right-from-bracket"></i></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-[1400px] mx-auto w-full px-4 py-6 flex-1 flex flex-col lg:flex-row gap-6 pb-20 lg:pb-6">
+    
+    <aside class="hidden lg:flex w-60 shrink-0 flex-col gap-1 pr-4 border-r border-slate-200">
+      <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest px-3 mb-2 font-mono">Modules</p>
+      <a href="dashboard.html" id="nav-dashboard" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-chart-line w-4 text-center"></i> Analytics</a>
+      <a href="members.html" id="nav-members" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-address-book w-4 text-center"></i> Memberships</a>
+      <a href="users.html" id="nav-users" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-users w-4 text-center"></i> Users</a>
+      <a href="districts.html" id="nav-districts" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-map-location-dot w-4 text-center"></i> Districts</a>
+      <a href="units.html" id="nav-units" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-sitemap w-4 text-center"></i> Units</a>
+      <a href="alerts.html" id="nav-alerts" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-bullhorn w-4 text-center"></i> Alerts</a>
+      <a href="settings.html" id="nav-settings" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-gears w-4 text-center"></i> Settings</a>
+      <a href="payments.html" id="nav-payments" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-indian-rupee-sign w-4 text-center"></i> Payments</a>
+      <a href="portal.html" target="_blank" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-all mt-4 w-full gap-2.5"><i class="fa-solid fa-external-link w-4 text-center"></i> Public Portal</a>
+    </aside>
+
+    <main class="flex-1 min-w-0 flex flex-col gap-5">
+      
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-fade-in-up">
+        <div>
+            <h2 class="text-2xl font-black text-slate-900 tracking-tight">Communications Command</h2>
+            <p class="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Broadcast rich-media layout guidelines downstream.</p>
+        </div>
+      </div>
+
+      <div class="admin-only hidden-force bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm animate-fade-in-up stagger-2">
+        <h3 id="editorPanelHeader" class="text-xs font-black text-slate-900 mb-4 uppercase tracking-wider font-mono flex items-center gap-2"><i class="fa-solid fa-pen-nib text-amber-500"></i> Compose Transmission</h3>
+        <input type="hidden" id="editTargetDirectiveId" value="">
+
+        <div class="grid grid-cols-1 sm:grid-cols-6 gap-3 mb-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div class="sm:col-span-6"><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono"><i class="fa-solid fa-crosshairs text-indigo-500"></i> Target Field Matrix Scope</p></div>
+            <div>
+                <select id="alertTargetLevel" class="w-full h-10 box-border bg-white border border-slate-200 rounded-xl px-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer" onchange="switchGeographicAlertScope()">
+                    <option value="Global">Global Broad</option>
+                    <option value="District">District Isolation</option>
+                    <option value="Block">Block Isolation</option>
+                    <option value="Panchayat">Panchayat Isolation</option>
+                    <option value="Unit">Unit Isolation</option>
+                </select>
+            </div>
+            <div><select id="alertTargetDist" disabled class="w-full h-10 box-border bg-white border border-slate-200 rounded-xl px-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-50" onchange="syncAlertFormLevels('district')"><option value="">-- All Districts --</option></select></div>
+            <div><select id="alertTargetBlk" disabled class="w-full h-10 box-border bg-white border border-slate-200 rounded-xl px-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-50" onchange="syncAlertFormLevels('block')"><option value="">-- All Blocks --</option></select></div>
+            <div><select id="alertTargetPan" disabled class="w-full h-10 box-border bg-white border border-slate-200 rounded-xl px-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-50" onchange="syncAlertFormLevels('panchayat')"><option value="">-- All Panchayats --</option></select></div>
+            <div><select id="alertTargetUnit" disabled class="w-full h-10 box-border bg-white border border-slate-200 rounded-xl px-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-50"><option value="">-- All Units --</option></select></div>
+        </div>
+
+        <div class="flex flex-col gap-4">
+            <div class="w-full relative shadow-sm rounded-xl">
+                <div id="rtEditorArea"></div>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="btnCancelEdit" onclick="revertEditorFormState()" class="hidden h-10 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs px-6 rounded-xl transition-colors font-mono uppercase tracking-wider">Cancel Edit</button>
+                <button onclick="commitRichTextAdvice()" class="h-10 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-8 rounded-xl shadow-md transition-colors uppercase font-mono tracking-wider flex items-center justify-center gap-2"><i class="fa-solid fa-satellite-dish"></i> <span id="btnSubmitText">Deploy Broadcast</span></button>
+            </div>
+        </div>
+      </div>
+
+      <div class="bg-white p-4.5 rounded-2xl border border-slate-200/60 shadow-sm animate-fade-in-up stagger-3">
+        <h4 class="text-xs font-black uppercase tracking-wider font-mono text-slate-700 mb-3"><i class="fa-solid fa-search text-emerald-500 mr-1"></i> Filter Active Feeds</h4>
+        
+        <div class="flex flex-col gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <select id="filterFeedScope" class="w-full h-10 box-border bg-slate-50 border border-slate-200 rounded-xl px-3 text-xs font-bold outline-none cursor-pointer" onchange="applyFilters()"><option value="">All Transmissions</option><option value="Global">Global Broadcasts</option><option value="Targeted">Isolated / Field Specific</option></select>
+                <input type="text" id="filterTextQuery" placeholder="Search inside text content..." class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl px-3 text-xs outline-none font-medium transition-colors" oninput="applyFilters()">
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                <select id="filterDist" class="w-full h-9 box-border bg-white border border-slate-200 rounded-lg px-2 text-xs font-medium text-slate-600 outline-none focus:border-indigo-500 cursor-pointer" onchange="syncFilterLevels('district'); applyFilters();"><option value="">-- Filter District --</option></select>
+                <select id="filterBlk" class="w-full h-9 box-border bg-white border border-slate-200 rounded-lg px-2 text-xs font-medium text-slate-600 outline-none focus:border-indigo-500 cursor-pointer" onchange="syncFilterLevels('block'); applyFilters();"><option value="">-- Filter Block --</option></select>
+                <select id="filterPan" class="w-full h-9 box-border bg-white border border-slate-200 rounded-lg px-2 text-xs font-medium text-slate-600 outline-none focus:border-indigo-500 cursor-pointer" onchange="syncFilterLevels('panchayat'); applyFilters();"><option value="">-- Filter Panchayat --</option></select>
+                <select id="filterUnit" class="w-full h-9 box-border bg-white border border-slate-200 rounded-lg px-2 text-xs font-medium text-slate-600 outline-none focus:border-indigo-500 cursor-pointer" onchange="applyFilters();"><option value="">-- Filter Unit --</option></select>
+            </div>
+        </div>
+      </div>
+
+      <div class="animate-fade-in-up stagger-4">
+          <h3 class="text-xs font-black text-slate-900 mb-4 uppercase tracking-wider font-mono flex items-center gap-2 border-b border-slate-200 pb-2"><i class="fa-solid fa-tower-broadcast text-emerald-500"></i> Active Log Matrix</h3>
+          <div id="directivesMasterList" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
+      </div>
+
+    </main>
+  </div>
+
+  <nav class="lg:hidden bg-white/95 border-t border-slate-200 fixed bottom-0 left-0 right-0 h-14 flex items-center justify-around px-2 backdrop-blur-layer z-30 shadow-[0_-4px_15px_rgba(0,0,0,0.05)]" style="padding-bottom: env(safe-area-inset-bottom);">
+      <a href="dashboard.html" id="mob-dashboard" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 hover:text-slate-900 transition-colors"><i class="fa-solid fa-chart-line text-sm"></i><span class="text-[8px] font-bold mt-1">Home</span></a>
+      <a href="members.html" id="mob-members" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 hover:text-slate-900 transition-colors"><i class="fa-solid fa-address-book text-sm"></i><span class="text-[8px] font-bold mt-1">Members</span></a>
+      <a href="districts.html" id="mob-districts" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 hover:text-slate-900 transition-colors"><i class="fa-solid fa-map-location-dot text-sm"></i><span class="text-[8px] font-bold mt-1">Map</span></a>
+      <a href="units.html" id="mob-units" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 hover:text-slate-900 transition-colors"><i class="fa-solid fa-sitemap text-sm"></i><span class="text-[8px] font-bold mt-1">Units</span></a>
+      <a href="settings.html" id="mob-settings" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 hover:text-slate-900 transition-colors"><i class="fa-solid fa-gears text-sm"></i><span class="text-[8px] font-bold mt-1">Setup</span></a>
+      <a href="payments.html" id="mob-payments" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400 hover:text-slate-900 transition-colors"><i class="fa-solid fa-indian-rupee-sign text-sm"></i><span class="text-[8px] font-bold mt-1">Pay</span></a>
+  </nav>
+
+  <script src="supabase.js"></script>
+  <script src="alerts.js"></script>
+</body>
+</html>

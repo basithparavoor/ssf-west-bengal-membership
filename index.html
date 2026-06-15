@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Login | SSF West Bengal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Global Styles (Ensure your style.css has the .font-cooper and .animate-fade-in-up classes) -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4 antialiased relative overflow-hidden">
+  
+  <!-- Ambient Background Glows -->
+  <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-emerald-300 rounded-full mix-blend-multiply filter blur-[128px] opacity-40 animate-pulse"></div>
+  <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-[128px] opacity-40 animate-pulse" style="animation-delay: 2s;"></div>
+
+  <!-- Global Loader & Toasts -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+  <div id="globalLoader" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm transition-opacity">
+    <div class="animate-spin rounded-full h-12 w-12 border-4 border-emerald-600 border-t-transparent mb-3 shadow-lg"></div>
+    <p id="globalLoaderText" class="text-xs font-black tracking-widest text-slate-500 uppercase font-mono">Authenticating...</p>
+  </div>
+
+  <!-- Main Login Card -->
+  <div class="w-full max-w-sm relative z-10 animate-fade-in-up">
+    
+    <div class="bg-white/95 backdrop-blur-xl p-8 rounded-[2rem] shadow-2xl border border-white/60">
+      
+      <!-- Branding Header -->
+      <div class="text-center flex flex-col items-center mb-8">
+        <div class="w-16 h-16 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl flex items-center justify-center text-white text-2xl font-cooper shadow-lg mb-4 transform hover:scale-105 transition-transform">
+          SSF
+        </div>
+        <h2 class="text-2xl font-black tracking-tight text-slate-900 leading-tight">State Committee</h2>
+        <p class="text-[10px] text-emerald-600 font-bold tracking-widest mt-1.5 uppercase font-mono bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">Operator Gateway</p>
+      </div>
+
+      <!-- Login Form -->
+      <form id="authForm" class="space-y-4">
+        <div>
+          <label class="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider font-mono pl-1">Username / Handle</label>
+          <div class="relative">
+            <i class="fa-solid fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input type="text" id="authUsername" required placeholder="Enter your credentials" class="w-full h-12 bg-slate-50/50 border border-slate-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 rounded-xl pl-10 pr-4 text-sm outline-none transition-all font-medium text-slate-800">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-wider font-mono pl-1">Secure Password</label>
+          <div class="relative">
+            <i class="fa-solid fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input type="password" id="authPassword" required placeholder="••••••••" class="w-full h-12 bg-slate-50/50 border border-slate-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 rounded-xl pl-10 pr-10 text-sm outline-none transition-all font-medium text-slate-800 tracking-widest">
+            <button type="button" onclick="togglePasswordVisibility('authPassword', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100">
+              <i class="fa-solid fa-eye text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="w-full mt-2 bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs py-3.5 rounded-xl shadow-lg hover:shadow-emerald-500/30 transform hover:-translate-y-0.5 active:scale-95 transition-all uppercase tracking-wider flex items-center justify-center gap-2">
+          <span>Authorize Access</span> <i class="fa-solid fa-arrow-right-to-bracket text-[10px] opacity-70"></i>
+        </button>
+      </form>
+    </div>
+
+    <!-- Public Portal Redirect -->
+    <div class="mt-6 text-center animate-fade-in-up" style="animation-delay: 0.2s;">
+      <p class="text-xs text-slate-500 font-medium">Looking for your Digital ID?</p>
+      <a href="portal.html" class="inline-flex items-center gap-1.5 mt-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors">
+        Go to the Public Portal <i class="fa-solid fa-arrow-right text-[10px]"></i>
+      </a>
+    </div>
+
+  </div>
+
+  <script src="supabase.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>

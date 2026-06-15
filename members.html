@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <title>Memberships | SSF West Bengal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
+  <!-- jsPDF libraries for Secure PDF exports -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+  
+  <style>
+    .cropper-view-box { outline: 2px solid #10b981; border-radius: 4px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); }
+    .cropper-face { background-color: transparent; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col antialiased">
+  
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+  <div id="globalLoader" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm transition-opacity z-[99]">
+    <div class="animate-spin rounded-full h-12 w-12 border-4 border-emerald-600 border-t-transparent mb-3 shadow-lg"></div>
+    <p id="globalLoaderText" class="text-xs font-black tracking-widest text-slate-500 uppercase font-mono">Synchronizing...</p>
+  </div>
+
+  <header class="bg-white border-b border-slate-200/60 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-[1400px] mx-auto px-4 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-cooper bg-emerald-600 text-white px-2.5 py-1 rounded-md shadow-inner">SSF</span>
+        <span class="text-xs font-black tracking-tight text-slate-800 hidden sm:inline-block">West Bengal Committee</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="hidden sm:flex items-center gap-2 bg-slate-50 border border-slate-200/60 rounded-xl px-3 py-1">
+          <div class="flex flex-col text-right">
+            <span id="sessionUserBadge" class="text-[11px] font-bold leading-none">-</span>
+            <span id="sessionRoleTag" class="text-[8px] font-black text-slate-400 uppercase mt-0.5 font-mono">-</span>
+          </div>
+        </div>
+        <button onclick="executeSecureLogout()" class="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl text-xs transition-all"><i class="fa-solid fa-right-from-bracket"></i></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-[1400px] mx-auto w-full px-4 py-6 flex-1 flex flex-col lg:flex-row gap-6 pb-20 lg:pb-6">
+    
+    <aside class="hidden lg:flex w-60 shrink-0 flex-col gap-1 pr-4 border-r border-slate-200">
+      <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest px-3 mb-2 font-mono">Modules</p>
+      <a href="dashboard.html" id="nav-dashboard" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-chart-line w-4 text-center"></i> Analytics</a>
+      <a href="members.html" id="nav-members" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 bg-slate-900 text-white shadow-md"><i class="fa-solid fa-address-book w-4 text-center"></i> Memberships</a>
+      <a href="users.html" id="nav-users" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-users w-4 text-center"></i> Users</a>
+      <a href="districts.html" id="nav-districts" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-map-location-dot w-4 text-center"></i> Districts</a>
+      <a href="units.html" id="nav-units" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-sitemap w-4 text-center"></i> Units</a>
+      <a href="alerts.html" id="nav-alerts" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-bullhorn w-4 text-center"></i> Alerts</a>
+      <a href="settings.html" id="nav-settings" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-gears w-4 text-center"></i> Settings</a>
+      <a href="payments.html" id="nav-payments" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold transition-all w-full gap-2.5 text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-indian-rupee-sign w-4 text-center"></i> Payments</a>
+      <a href="portal.html" target="_blank" class="flex items-center text-xs px-3 py-2.5 rounded-xl font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-all mt-4 w-full gap-2.5"><i class="fa-solid fa-external-link w-4 text-center"></i> Public Portal</a>
+    </aside>
+
+    <main class="flex-1 min-w-0 flex flex-col gap-5">
+      
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-fade-in-up stagger-1">
+        <div>
+            <h2 class="text-2xl font-black text-slate-900 tracking-tight">Membership Directory</h2>
+            <p class="text-[10px] text-slate-500 font-mono mt-1 uppercase tracking-wider">Total Captured Directory Nodes: <span id="statTotalCount" class="font-bold text-emerald-600">0</span></p>
+        </div>
+        <button onclick="openMembershipFormModal()" class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 uppercase tracking-wider box-border"><i class="fa-solid fa-user-plus"></i> Enroll Member</button>
+      </div>
+
+      <div class="bg-white p-4.5 rounded-2xl border border-slate-200/60 shadow-sm animate-fade-in-up stagger-2">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+            <h3 class="text-xs font-black uppercase tracking-wider font-mono text-slate-700"><i class="fa-solid fa-filter text-indigo-500 mr-1"></i> Global Filters</h3>
+            <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                <button onclick="exportSelectedToPDF()" class="flex-1 sm:flex-none h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 rounded-xl border border-slate-200 transition-colors flex items-center justify-center gap-2 whitespace-nowrap"><i class="fa-solid fa-file-pdf text-rose-600"></i> Export PDF List</button>
+                <button onclick="exportSelectedToCSV()" class="flex-1 sm:flex-none h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 rounded-xl border border-slate-200 transition-colors flex items-center justify-center gap-2 whitespace-nowrap"><i class="fa-solid fa-file-csv text-emerald-600"></i> Export CSV</button>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div class="relative lg:col-span-2">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input type="text" id="filterSearchQuery" placeholder="Search ID, Name, or Phone..." class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl pl-8 pr-3 text-xs outline-none font-medium transition-colors" oninput="applyFilters()">
+          </div>
+          <select id="filterDistrict" class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl px-3 text-xs outline-none cursor-pointer font-medium" onchange="syncFilterDropdowns('district')"><option value="">All Districts</option></select>
+          <select id="filterBlock" class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl px-3 text-xs outline-none cursor-pointer font-medium" onchange="syncFilterDropdowns('block')"><option value="">All Blocks</option></select>
+          <select id="filterPanchayat" class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl px-3 text-xs outline-none cursor-pointer font-medium" onchange="applyFilters()"><option value="">All Panchayats</option></select>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden animate-fade-in-up stagger-3 flex flex-col flex-1">
+        <div class="hidden md:block overflow-x-auto flex-1 custom-scrollbar">
+          <table class="w-full text-left border-collapse whitespace-nowrap">
+            <thead class="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+              <tr class="text-[9px] font-black uppercase tracking-wider text-slate-400 font-mono">
+                <th class="py-3.5 px-4 w-10 text-center"><input type="checkbox" id="selectAllCheckbox" onchange="toggleAllSelections(this)" class="accent-indigo-600 w-3 h-3"></th>
+                <th class="py-3.5 px-4 w-10 text-center">#</th>
+                <th class="py-3.5 px-4">Member Info</th>
+                <th class="py-3.5 px-4">Contact</th>
+                <th class="py-3.5 px-4">Territory Node</th>
+                <th class="py-3.5 px-4">Role</th>
+                <th class="py-3.5 px-4 text-right pr-6">Action</th>
+              </tr>
+            </thead>
+            <tbody id="memberMasterTableBody" class="divide-y divide-slate-100 text-xs text-slate-700"></tbody>
+          </table>
+        </div>
+
+        <div id="memberMobileCardsGrid" class="block md:hidden flex-1 overflow-y-auto space-y-3 p-4 bg-slate-50/50"></div>
+
+        <div id="emptyState" class="hidden py-16 flex flex-col items-center justify-center text-slate-400 w-full">
+            <i class="fa-solid fa-address-book text-4xl mb-3 opacity-20"></i>
+            <p class="font-bold text-sm text-slate-500">No members found</p>
+        </div>
+
+        <div class="bg-slate-50 border-t border-slate-200 p-3 sm:px-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Rows per page:</span>
+                <select id="pageSizeSelect" class="bg-white border border-slate-200 rounded-lg text-xs px-2 py-1 font-bold outline-none" onchange="changePageSize()">
+                    <option value="10">10</option>
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+            <div class="text-xs font-medium text-slate-500">Showing <span id="pageStartText" class="font-bold text-slate-900">0</span> to <span id="pageEndText" class="font-bold text-slate-900">0</span> of <span id="pageTotalText" class="font-bold text-slate-900">0</span></div>
+            <div class="flex items-center gap-1.5">
+                <button onclick="prevPage()" id="btnPrevPage" class="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-chevron-left text-[10px]"></i></button>
+                <div id="paginationNumbers" class="flex gap-1.5 hidden sm:flex"></div>
+                <button onclick="nextPage()" id="btnNextPage" class="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-100"><i class="fa-solid fa-chevron-right text-[10px]"></i></button>
+            </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <nav class="lg:hidden bg-white/95 border-t border-slate-200 fixed bottom-0 left-0 right-0 h-14 flex items-center justify-around px-2 backdrop-blur-layer z-30" style="padding-bottom: env(safe-area-inset-bottom);">
+      <a href="dashboard.html" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400"><i class="fa-solid fa-chart-line text-sm"></i><span class="text-[8px] font-bold mt-1">Home</span></a>
+      <a href="members.html" class="flex flex-col items-center justify-center flex-1 h-full text-emerald-600"><i class="fa-solid fa-address-book text-sm"></i><span class="text-[8px] font-bold mt-1">Members</span></a>
+      <a href="districts.html" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400"><i class="fa-solid fa-map-location-dot text-sm"></i><span class="text-[8px] font-bold mt-1">Map</span></a>
+      <a href="units.html" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400"><i class="fa-solid fa-sitemap text-sm"></i><span class="text-[8px] font-bold mt-1">Units</span></a>
+      <a href="settings.html" class="flex flex-col items-center justify-center flex-1 h-full text-slate-400"><i class="fa-solid fa-gears text-sm"></i><span class="text-[8px] font-bold mt-1">Setup</span></a>
+  </nav>
+
+  <!-- ========================================== -->
+  <!-- VIEW MEMBERSHIP MODAL (Verification Hub)   -->
+  <!-- ========================================== -->
+  <div id="viewMembershipModal" class="backdrop-blur-layer bg-slate-950/60 hidden fixed inset-0 z-50 flex items-center justify-center p-4 opacity-0 transition-opacity duration-200">
+      <div class="bg-white rounded-[2rem] shadow-2xl border border-slate-200 w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden transform scale-95 transition-transform duration-200">
+          
+          <div class="flex justify-between items-center p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50">
+              <h3 class="text-lg font-black text-slate-900 uppercase font-mono tracking-tight"><i class="fa-solid fa-id-badge text-indigo-500 mr-2"></i> ID & Verification Gateway</h3>
+              <button onclick="closeViewMembershipModal()" class="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+
+          <div class="p-4 sm:p-6 overflow-y-auto custom-scrollbar flex-1 bg-slate-50">
+              <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                  
+                  <!-- Left Column: The Digital ID Card Preview -->
+                  <div class="flex flex-col items-center gap-4 w-full">
+                      
+                      <!-- Scrollable wrapper fix prevents html2canvas cropping on mobile -->
+                      <div class="w-full overflow-x-auto custom-scrollbar pb-4" style="text-align: left;">
+                          <div class="w-max mx-auto p-1">
+                              
+                              <!-- ACTUAL ID CARD (Redesigned for better spacing) -->
+                              <div id="digitalCardPrintArea" class="w-[680px] h-[440px] bg-white relative overflow-hidden border border-slate-200 shadow-md rounded-xl flex flex-col" style="background-color: #f8fafc; background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 20px 20px;">
+                                  
+                                  <!-- Top Header -->
+                                  <div class="flex justify-between items-start pt-6 pl-8">
+                                      <h1 class="text-[#b91c1c] text-[65px] leading-none tracking-wider font-cooper" style="text-shadow: 2px 2px 0px rgba(0,0,0,0.05);">SSF</h1>
+                                      <div id="cardPrintRoleBox" class="bg-[#b91c1c] text-white font-bold text-xl px-6 py-2.5 rounded-l-2xl shadow-md uppercase tracking-widest mt-2 whitespace-nowrap"></div>
+                                  </div>
+
+                                  <!-- Middle Section: Details + Photo/QR -->
+                                  <div class="px-8 mt-4 flex justify-between gap-6 relative z-10 flex-1">
+                                      
+                                      <!-- Details Box -->
+                                      <div class="bg-gradient-to-r from-[#ebd699] to-[#d6bc6d] rounded-2xl p-5 flex-1 shadow-sm text-[15px] font-bold text-slate-900 z-10 relative h-fit">
+                                          <table class="w-full">
+                                              <tr><td class="w-24 pb-2 opacity-80">No</td><td class="pb-2">: <span id="cardPrintId"></span></td></tr>
+                                              <tr><td class="pb-2 opacity-80">Name</td><td class="pb-2 text-[#b91c1c] uppercase">: <span id="cardPrintName"></span></td></tr>
+                                              <tr><td class="pb-2 opacity-80">S/O</td><td class="pb-2 uppercase">: <span id="cardPrintFather"></span></td></tr>
+                                              <tr><td class="pb-2 opacity-80">Unit</td><td class="pb-2 uppercase">: <span id="cardPrintUnit"></span></td></tr>
+                                              <tr><td class="pb-2 opacity-80">Division</td><td class="pb-2 uppercase">: <span id="cardPrintTerritory"></span></td></tr>
+                                              <tr><td class="pb-2 opacity-80">Mobile</td><td class="pb-2">: <span id="cardPrintPhone"></span></td></tr>
+                                              <tr><td class="pb-0 opacity-80">Blood</td><td class="pb-0 text-[#b91c1c]">: <span id="cardPrintBlood"></span></td></tr>
+                                          </table>
+                                      </div>
+
+                                      <!-- Right Side: Photo & QR -->
+                                      <div class="flex flex-col items-center gap-3 relative z-10 mr-4">
+                                          <div class="w-[110px] h-[135px] shrink-0 bg-white rounded-[1rem] shadow-md overflow-hidden border-[4px] border-white z-10 relative">
+                                              <img id="cardPrintPhoto" src="" crossorigin="anonymous" class="w-full h-full object-cover">
+                                          </div>
+                                          <div class="bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm w-20 h-20 z-20">
+                                              <img id="cardPrintQRCode" src="" crossorigin="anonymous" class="w-full h-full object-contain">
+                                          </div>
+                                      </div>
+                                      
+                                      <!-- Vertical Validity Text -->
+                                      <div class="absolute right-0 top-0 bottom-0 flex items-center justify-center w-6">
+                                          <div class="text-[11px] font-bold tracking-widest text-slate-800 transform -rotate-90 whitespace-nowrap">
+                                              Valid Upto : 2028 December 31
+                                          </div>
+                                      </div>
+                                  </div>
+
+                                  <!-- Bottom Footer Section -->
+                                  <div class="w-full px-8 pb-3 relative z-20 mt-auto">
+                                      <div class="flex justify-between items-end mb-2">
+                                          <!-- Seal & Signature -->
+                                          <div class="flex items-center gap-4">
+                                              <div class="w-16 h-16 flex items-center justify-center overflow-hidden">
+                                                  <img src="https://corsproxy.io/?https%3A%2F%2Fdrive.google.com%2Fuc%3Fexport%3Dview%26id%3D1HPuNAPX_dq_HY5jAsZaIq9tpSc5tR0sf" crossorigin="anonymous" class="w-full h-full object-contain mix-blend-multiply opacity-90" onerror="this.style.display='none'">
+                                              </div>
+                                              <div class="flex flex-col items-center relative min-w-[150px]">
+                                                  <img src="https://corsproxy.io/?https%3A%2F%2Fdrive.google.com%2Fuc%3Fexport%3Dview%26id%3D1-dNg9lxhjaw5HdLexa_1EM0jNYM4KBrB" crossorigin="anonymous" class="h-10 w-auto absolute -top-8 mix-blend-multiply opacity-90" onerror="this.style.display='none'">
+                                                  <span class="font-black text-[13px] text-slate-900 mt-2 z-10">Abdul Rahman Saqafi</span>
+                                                  <span class="text-[9px] font-bold text-slate-600">(General Secretary, SSF West Bengal)</span>
+                                              </div>
+                                          </div>
+                                      </div>
+
+                                      <div class="flex flex-col items-center border-t border-slate-300/50 pt-2">
+                                          <h2 class="text-[#b91c1c] font-black text-[22px] tracking-wide font-sans">West Bengal State Sunni Student's Federation</h2>
+                                          <div class="flex gap-4 text-[9px] font-bold text-slate-600 mt-1">
+                                              <span class="flex items-center gap-1"><i class="fa-solid fa-location-dot"></i> Students' Centre Kolkata</span>
+                                              <span class="flex items-center gap-1"><i class="fa-solid fa-globe"></i> www.ssfwestbengal.org</span>
+                                              <span class="flex items-center gap-1"><i class="fa-solid fa-envelope"></i> ssf.wbstate@gmail.com</span>
+                                              <span class="flex items-center gap-1"><i class="fa-solid fa-phone"></i> +91 7025 292 136</span>
+                                          </div>
+                                          <!-- Downloaded Date -->
+                                          <div class="text-[8px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Generated On: <span id="cardPrintDate" class="text-slate-600 font-black"></span></div>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+
+                      <div class="flex flex-col w-full max-w-[320px]">
+                          <button onclick="downloadDigitalCardAsPDF(event)" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all uppercase tracking-wider flex items-center justify-center gap-2 text-xs">
+                              <i class="fa-solid fa-lock text-sm"></i> Download Secure PDF
+                          </button>
+                      </div>
+                  </div>
+
+                  <!-- Right Column: Verification Hub & Database View -->
+                  <div class="flex flex-col gap-4 w-full">
+                      
+                      <!-- Verification Hub -->
+                      <div class="bg-white p-5 rounded-2xl border border-indigo-100 shadow-sm relative overflow-hidden">
+                          <div class="absolute -right-4 -top-4 w-20 h-20 bg-indigo-50 rounded-full opacity-50 pointer-events-none"></div>
+                          <h4 class="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-3 font-mono relative z-10"><i class="fa-solid fa-link"></i> Verification Hub</h4>
+                          
+                          <label class="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 font-mono">Public Share Link</label>
+                          <div class="flex gap-2 relative z-10">
+                              <input type="text" id="viewMemVerifyLink" readonly class="w-full h-10 bg-slate-50 border border-slate-200 rounded-xl px-3 text-[10px] text-slate-700 outline-none font-mono truncate focus:border-indigo-500">
+                              <button onclick="copyVerifyLink()" id="btnCopyVerifyLink" class="h-10 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 px-5 rounded-xl text-[10px] font-bold transition-colors flex items-center gap-2 whitespace-nowrap shadow-sm">
+                                  <i class="fa-solid fa-copy"></i> Copy
+                              </button>
+                          </div>
+                          
+                          <div class="flex items-center gap-4 mt-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                              <div class="bg-white p-1.5 rounded-lg border border-slate-200 shadow-sm w-16 h-16 shrink-0">
+                                  <img id="viewMemQRCode" src="" crossorigin="anonymous" class="w-full h-full object-contain">
+                              </div>
+                              <div>
+                                  <p class="text-[9px] text-slate-500 leading-relaxed">This secure link and QR code routes directly to the public gateway. Anyone can cryptographically verify this member's authenticity.</p>
+                                  <button onclick="downloadMemberQR(event)" class="text-[9px] font-bold text-indigo-600 hover:text-indigo-800 mt-1 uppercase tracking-wider font-mono"><i class="fa-solid fa-download"></i> Save QR Image</button>
+                              </div>
+                          </div>
+                      </div>
+
+                      <!-- Database Snapshot -->
+                      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                          <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 font-mono"><i class="fa-solid fa-database text-slate-400"></i> Database Snapshot</h4>
+                          <div class="space-y-2.5 text-[11px]">
+                              <div class="flex justify-between border-b border-slate-50 pb-1.5"><span class="text-slate-400 font-medium">Contact</span><span id="viewMemPhone" class="font-mono font-bold text-slate-800">-</span></div>
+                              <div class="flex justify-between border-b border-slate-50 pb-1.5"><span class="text-slate-400 font-medium">WhatsApp</span><span id="viewMemWhatsapp" class="font-mono font-bold text-emerald-600">-</span></div>
+                              <div class="flex justify-between border-b border-slate-50 pb-1.5"><span class="text-slate-400 font-medium">Email</span><span id="viewMemEmail" class="font-mono font-bold text-slate-800 lowercase">-</span></div>
+                              <div class="flex justify-between border-b border-slate-50 pb-1.5"><span class="text-slate-400 font-medium">Father's Name</span><span id="viewMemFather" class="font-bold text-slate-800 uppercase">-</span></div>
+                              <div class="flex justify-between border-b border-slate-50 pb-1.5"><span class="text-slate-400 font-medium">DOB / Age</span><span id="viewMemAge" class="font-bold text-slate-800">-</span></div>
+                              <div class="flex justify-between border-b border-slate-50 pb-1.5"><span class="text-slate-400 font-medium">Blood Group</span><span id="viewMemBlood" class="font-bold text-rose-600">-</span></div>
+                              <div class="flex justify-between border-b border-slate-50 pb-1.5"><span class="text-slate-400 font-medium">Police Station</span><span id="viewMemPS" class="font-bold text-slate-800 uppercase">-</span></div>
+                              <div class="flex justify-between pt-1"><span class="text-slate-400 font-medium">Capture Source</span><span id="viewMemCreator" class="font-bold text-indigo-500 uppercase">-</span></div>
+                          </div>
+                      </div>
+
+                  </div>
+              </div>
+          </div>
+      </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- ADD/EDIT MEMBERSHIP MODAL                  -->
+  <!-- ========================================== -->
+  <div id="addMembershipModal" class="backdrop-blur-layer bg-slate-950/60 hidden fixed inset-0 z-40 flex items-center justify-center p-4 opacity-0 transition-opacity duration-200">
+      <div class="bg-white rounded-[2rem] shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden transform scale-95 transition-transform duration-200">
+          
+          <div class="flex justify-between items-center p-5 sm:p-6 border-b border-slate-100 bg-slate-50">
+              <h3 class="text-lg font-black text-slate-900 uppercase font-mono tracking-tight"><i class="fa-solid fa-user-plus text-emerald-500 mr-2"></i> Enroll Member</h3>
+              <button onclick="closeMembershipModal()" class="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+
+          <div class="p-5 sm:p-6 overflow-y-auto custom-scrollbar flex-1 bg-white">
+              <form id="enrollmentForm" onsubmit="handleMembershipSubmit(event)" class="space-y-6">
+                  <input type="hidden" id="formMembershipId" value="">
+
+                  <div class="flex flex-col sm:flex-row gap-6">
+                      <div class="w-full sm:w-1/3 flex flex-col items-center">
+                          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 font-mono w-full text-center">Identity Photo (3:4)</label>
+                          <div class="w-32 h-40 rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center bg-slate-50 relative overflow-hidden group hover:border-emerald-500 transition-colors">
+                              <img id="formPhotoPreview" src="" class="w-full h-full object-cover hidden">
+                              <div id="formPhotoPlaceholder" class="flex flex-col items-center text-slate-400 group-hover:text-emerald-500 transition-colors">
+                                  <i class="fa-solid fa-camera text-3xl mb-2"></i>
+                                  <span class="text-[10px] font-bold">Upload Photo</span>
+                              </div>
+                              <input type="file" id="formPhotoInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="initiateCropper(event)">
+                          </div>
+                      </div>
+
+                      <div class="w-full sm:w-2/3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div class="sm:col-span-2">
+                              <label class="block text-[10px] font-bold text-slate-500 mb-1 font-mono uppercase">Full Name *</label>
+                              <input type="text" id="formName" required class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800">
+                          </div>
+                          <div class="sm:col-span-2">
+                              <label class="block text-[10px] font-bold text-slate-500 mb-1 font-mono uppercase">Father's Name *</label>
+                              <input type="text" id="formFather" required class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800">
+                          </div>
+                          <div>
+                              <label class="block text-[10px] font-bold text-slate-500 mb-1 font-mono uppercase">Date of Birth *</label>
+                              <input type="date" id="formDob" required class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800">
+                          </div>
+                          <div>
+                              <label class="block text-[10px] font-bold text-slate-500 mb-1 font-mono uppercase">Blood Group</label>
+                              <select id="formBloodGroup" class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800">
+                                  <option value="Unknown">Unknown</option>
+                                  <option value="A+">A+</option><option value="A-">A-</option>
+                                  <option value="B+">B+</option><option value="B-">B-</option>
+                                  <option value="O+">O+</option><option value="O-">O-</option>
+                                  <option value="AB+">AB+</option><option value="AB-">AB-</option>
+                              </select>
+                          </div>
+                         <div class="sm:col-span-1">
+    <label class="block text-[10px] font-bold text-slate-500 mb-1 font-mono uppercase">Committee Level *</label>
+    <select id="formLevel" required onchange="syncRoleDropdown()" class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800 transition-colors">
+        <option value="" disabled selected>Select Level</option>
+        <option value="State">State</option>
+        <option value="District">District</option>
+        <option value="Block">Block</option>
+        <option value="Panchayat">Panchayat</option>
+        <option value="Unit">Unit</option>
+    </select>
+</div>
+<div class="sm:col-span-1">
+    <label class="block text-[10px] font-bold text-slate-500 mb-1 font-mono uppercase">Committee Role *</label>
+    <select id="formRole" required disabled class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+        <option value="" disabled selected>Select Level First</option>
+    </select>
+</div>
+                      </div>
+                  </div>
+
+                  <div class="w-full h-px bg-slate-100"></div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                          <label class="block text-[10px] font-bold text-slate-500 mb-1 font-mono uppercase">Phone Number *</label>
+                          <input type="tel" id="formPhone" required pattern="[0-9]{10}" class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800">
+                      </div>
+                      <div>
+                          <label class="block text-[10px] font-bold text-slate-500 mb-1 font-mono uppercase">WhatsApp Number *</label>
+                          <input type="tel" id="formWhatsapp" required pattern="[0-9]{10}" class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800">
+                      </div>
+                      <div class="sm:col-span-2">
+                          <label class="block text-[10px] font-bold text-slate-500 mb-1 font-mono uppercase">Email Address</label>
+                          <input type="email" id="formEmail" placeholder="optional@email.com" class="w-full h-10 box-border bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800">
+                      </div>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                      <div>
+                          <label class="block text-[10px] font-bold text-indigo-500 mb-1 font-mono uppercase">District *</label>
+                          <select id="formDistrict" required onchange="syncEnrollmentDropdowns('district')" class="w-full h-10 box-border bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800"><option value="">Select District</option></select>
+                      </div>
+                      <div>
+                          <label class="block text-[10px] font-bold text-indigo-500 mb-1 font-mono uppercase">Block *</label>
+                          <select id="formBlock" required onchange="syncEnrollmentDropdowns('block')" class="w-full h-10 box-border bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800"><option value="">Select Block</option></select>
+                      </div>
+                      <div>
+                          <label class="block text-[10px] font-bold text-indigo-500 mb-1 font-mono uppercase">Panchayat *</label>
+                          <select id="formPanchayat" required onchange="syncEnrollmentDropdowns('panchayat')" class="w-full h-10 box-border bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800"><option value="">Select Panchayat</option></select>
+                      </div>
+                      <div>
+                          <label class="block text-[10px] font-bold text-indigo-500 mb-1 font-mono uppercase">Unit *</label>
+                          <select id="formUnit" required class="w-full h-10 box-border bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800"><option value="">Select Unit</option></select>
+                      </div>
+                      <div>
+                          <label class="block text-[10px] font-bold text-indigo-500 mb-1 font-mono uppercase">Police Station *</label>
+                          <input type="text" id="formPS" required class="w-full h-10 box-border bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800">
+                      </div>
+                      <div>
+                          <label class="block text-[10px] font-bold text-indigo-500 mb-1 font-mono uppercase">PIN Code *</label>
+                          <input type="text" id="formPin" required class="w-full h-10 box-border bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 text-xs outline-none font-bold text-slate-800">
+                      </div>
+                  </div>
+
+                  <div class="flex justify-end pt-4 border-t border-slate-100">
+                      <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-8 rounded-xl shadow-md uppercase tracking-wider text-xs transition-colors"><i class="fa-solid fa-save mr-2"></i> Save Member</button>
+                  </div>
+              </form>
+          </div>
+      </div>
+  </div>
+
+  <div id="cropperModal" class="backdrop-blur-layer bg-slate-950/80 hidden fixed inset-0 z-[60] flex items-center justify-center p-4 opacity-0 transition-opacity duration-200">
+      <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-4 flex flex-col">
+          <h3 class="text-sm font-black text-slate-900 mb-4 uppercase tracking-wider font-mono">Adjust Photo (Passport 3:4)</h3>
+          <div class="w-full h-64 bg-slate-100 rounded-lg overflow-hidden relative flex items-center justify-center">
+              <img id="cropperImage" src="" class="max-w-full max-h-full block">
+          </div>
+          <div class="flex justify-end gap-2 mt-4">
+              <button type="button" onclick="cancelCropper()" class="px-4 py-2 bg-slate-100 text-slate-600 font-bold rounded-lg text-xs hover:bg-slate-200">Cancel</button>
+              <button type="button" onclick="confirmCrop()" class="px-4 py-2 bg-emerald-600 text-white font-bold rounded-lg text-xs hover:bg-emerald-700 shadow-md">Apply Crop</button>
+          </div>
+      </div>
+  </div>
+
+  <!-- FRONTEND DELETE CONFIRMATION MODAL -->
+  <div id="deleteConfirmModal" class="backdrop-blur-layer bg-slate-950/60 hidden fixed inset-0 z-[70] flex items-center justify-center p-4 opacity-0 transition-opacity duration-200">
+      <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-sm p-6 flex flex-col text-center transform scale-95 transition-transform duration-200">
+          <div class="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
+              <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <h3 class="text-lg font-black text-slate-900 mb-2">Revoke Membership?</h3>
+          <p class="text-xs text-slate-500 mb-6">This action is permanent and will remove this member from the directory. Do you want to proceed?</p>
+          <div class="flex gap-3 w-full">
+              <button onclick="closeDeleteModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition-colors">Cancel</button>
+              <button onclick="confirmDeleteMember()" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md transition-colors">Yes, Delete</button>
+          </div>
+      </div>
+  </div>
+
+  <script src="supabase.js"></script>
+  <script src="members.js"></script>
+</body>
+</html>
