@@ -451,13 +451,19 @@ function closeViewUserModal() { hideModal('viewUserModal'); }
 
 async function openViewMembersModal(username) {
     document.getElementById('vmUserTitle').innerText = `@${username}`;
-    document.getElementById('vmTableBody').innerHTML = '';
+    document.getElementById('vmList').innerHTML = '';
+    document.getElementById('vmTotalCount').innerText = '0';
     document.getElementById('vmEmptyState').classList.add('hidden');
     document.getElementById('vmLoader').classList.remove('hidden');
     showModal('viewMembersModal');
 
     try {
-        const { data, error } = await supa.from('memberships').select('name, phone, created_at').eq('created_by', username).order('created_at', { ascending: false });
+        // FIX: Changed 'created_at' to 'timestamp' to match your database schema
+        const { data, error } = await supa.from('memberships')
+            .select('membership_id, name, phone, district, unit, committee_role, photo_url, is_digital, timestamp')
+            .eq('created_by', username)
+            .order('timestamp', { ascending: false });
+            
         if(error) throw error;
 
         document.getElementById('vmLoader').classList.add('hidden');
@@ -465,20 +471,44 @@ async function openViewMembersModal(username) {
         if(!data || data.length === 0) {
             document.getElementById('vmEmptyState').classList.remove('hidden');
         } else {
-            const tbody = document.getElementById('vmTableBody');
-            data.forEach((m, idx) => {
-                const date = new Date(m.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
-                tbody.innerHTML += `
-                    <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="py-2.5 px-4 text-center font-mono text-slate-400">${idx + 1}</td>
-                        <td class="py-2.5 px-4 font-bold text-slate-800">${m.name}</td>
-                        <td class="py-2.5 px-4 font-mono text-slate-500">${m.phone || 'N/A'}</td>
-                        <td class="py-2.5 px-4 text-slate-500">${date}</td>
-                    </tr>
+            document.getElementById('vmTotalCount').innerText = data.length;
+            const list = document.getElementById('vmList');
+            
+            data.forEach((m) => {
+                // FIX: Changed m.created_at to m.timestamp
+                const date = new Date(m.timestamp).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+                const photo = m.photo_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80';
+                
+                const badge = m.is_digital 
+                    ? '<span class="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Digital</span>' 
+                    : '<span class="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Physical</span>';
+
+                list.innerHTML += `
+                    <div class="bg-white border border-slate-200/80 rounded-2xl p-3 flex items-center gap-4 hover:shadow-md hover:border-indigo-200 transition-all group">
+                        <div class="w-14 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200 shadow-sm">
+                            <img src="${photo}" class="w-full h-full object-cover" crossorigin="anonymous">
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-start mb-1">
+                                <h4 class="font-black text-slate-900 truncate text-sm leading-none group-hover:text-indigo-600 transition-colors">${m.name}</h4>
+                                <span class="text-[9px] text-slate-400 font-mono font-bold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 shrink-0">${date}</span>
+                            </div>
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-[9px] font-mono bg-slate-100 border border-slate-200 text-slate-500 px-1.5 py-0.5 rounded inline-block">${m.membership_id}</span>
+                                ${badge}
+                                <span class="text-[10px] font-bold text-slate-500 truncate"><i class="fa-solid fa-phone text-[9px] mr-0.5 opacity-50"></i> ${m.phone}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 mt-auto overflow-hidden">
+                                <span class="bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-md text-[8px] uppercase font-bold tracking-wider truncate"><i class="fa-solid fa-location-crosshairs mr-0.5"></i> ${m.district} > ${m.unit}</span>
+                                <span class="bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md text-[8px] uppercase font-bold tracking-wider truncate">${m.committee_role}</span>
+                            </div>
+                        </div>
+                    </div>
                 `;
             });
         }
     } catch (err) {
+        console.error("Fetch Error:", err);
         document.getElementById('vmLoader').classList.add('hidden');
         spawnToastNotification("Failed to fetch members", "error");
     }

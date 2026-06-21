@@ -12,6 +12,13 @@ let editTarget = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!enforceSession()) return;
+    
+    // KICK OUT UNIT OPERATORS
+    if (STATE_CACHE.role === 'UnitAdmin') {
+        window.location.href = 'members.html';
+        return;
+    }
+
     setActiveSidebarLink('units');
     await fetchMasterData();
 });
@@ -229,8 +236,9 @@ function renderTable() {
     const currentSlice = filteredUnits.slice(startIdx, startIdx + pageSize);
     const isAdmin = STATE_CACHE.role === 'Admin' || STATE_CACHE.role === 'MasterAdmin';
 
-    currentSlice.forEach((u, index) => {
-        // Desktop Row
+    
+        currentSlice.forEach((u, index) => {
+        // Desktop Row (Updated with clickable button)
         tbody.innerHTML += `
             <tr class="hover:bg-indigo-50/30 transition-colors group cursor-default">
                 <td class="py-3 px-4 text-center font-mono text-slate-400">${startIdx + index + 1}</td>
@@ -241,7 +249,7 @@ function renderTable() {
                     <i class="fa-solid fa-angle-right text-[8px] mx-1 opacity-50"></i> ${u.panchayat_name}
                 </td>
                 <td class="py-3 px-4 font-bold text-slate-700">
-                    <span class="bg-blue-50 border border-blue-200 text-blue-600 px-2 py-1 rounded text-xs inline-flex items-center gap-1.5"><i class="fa-solid fa-users text-[10px]"></i> ${u.members_count}</span>
+                    <button onclick="openViewUnitMembersModal('${u.unit_name}', '${u.panchayat_name}', '${u.block_name}', '${u.district_name}')" class="bg-blue-50 border border-blue-200 text-blue-600 px-3 py-1 rounded-lg text-xs inline-flex items-center gap-1.5 hover:bg-blue-600 hover:text-white hover:shadow-md transition-all cursor-pointer"><i class="fa-solid fa-users text-[10px]"></i> ${u.members_count} View</button>
                 </td>
                 <td class="py-3 px-4 text-right pr-6">
                     <div class="flex items-center justify-end gap-1 ${isAdmin ? 'opacity-60 group-hover:opacity-100' : 'opacity-20'} transition-opacity">
@@ -253,7 +261,7 @@ function renderTable() {
                 </td>
             </tr>`;
             
-        // Mobile Card
+        // Mobile Card (Updated with clickable button)
         mobileGrid.innerHTML += `
             <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative">
                 ${isAdmin ? `
@@ -263,7 +271,7 @@ function renderTable() {
                 </div>` : ''}
                 <div class="pr-20">
                     <h4 class="text-base font-black text-slate-900 leading-tight">${u.unit_name}</h4>
-                    <p class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider font-mono"><i class="fa-solid fa-users mr-1"></i> ${u.members_count} Memberships</p>
+                    <button onclick="openViewUnitMembersModal('${u.unit_name}', '${u.panchayat_name}', '${u.block_name}', '${u.district_name}')" class="text-[10px] text-indigo-500 hover:text-indigo-700 mt-1.5 uppercase tracking-wider font-mono flex items-center gap-1 transition-colors text-left font-bold"><i class="fa-solid fa-users"></i> ${u.members_count} Members (Click to View)</button>
                 </div>
                 <div class="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-1.5 text-[11px] font-medium text-slate-600">
                     <div><span class="font-bold text-slate-400 w-16 inline-block">District:</span> <span class="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold">${u.district_name}</span></div>
@@ -459,7 +467,89 @@ async function executeUnitDelete() {
     }
     toggleInteractionLoader(false);
 }
+// ==========================================
+// VIEW UNIT MEMBERS (RICH MODAL)
+// ==========================================
+async function openViewUnitMembersModal(unit, panchayat, block, district) {
+    document.getElementById('vmUnitTitle').innerText = unit;
+    document.getElementById('vmList').innerHTML = '';
+    document.getElementById('vmTotalCount').innerText = '0';
+    document.getElementById('vmEmptyState').classList.add('hidden');
+    document.getElementById('vmLoader').classList.remove('hidden');
+    
+    const modal = document.getElementById('viewMembersModal');
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        modal.querySelector('div').classList.remove('scale-95');
+    }, 10);
 
+    try {
+        const { data, error } = await supa.from('memberships')
+            .select('membership_id, name, phone, district, unit, committee_role, photo_url, is_digital, timestamp')
+            .eq('unit', unit)
+            .eq('panchayat', panchayat)
+            .eq('block', block)
+            .eq('district', district)
+            .order('timestamp', { ascending: false });
+            
+        if(error) throw error;
+
+        document.getElementById('vmLoader').classList.add('hidden');
+        
+        if(!data || data.length === 0) {
+            document.getElementById('vmEmptyState').classList.remove('hidden');
+        } else {
+            document.getElementById('vmTotalCount').innerText = data.length;
+            const list = document.getElementById('vmList');
+            
+            data.forEach((m) => {
+                const date = new Date(m.timestamp).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+                const photo = m.photo_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80';
+                
+                const badge = m.is_digital 
+                    ? '<span class="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Digital</span>' 
+                    : '<span class="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Physical</span>';
+
+                list.innerHTML += `
+                    <div class="bg-white border border-slate-200/80 rounded-2xl p-3 flex items-center gap-4 hover:shadow-md hover:border-indigo-200 transition-all group">
+                        <div class="w-14 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200 shadow-sm">
+                            <img src="${photo}" class="w-full h-full object-cover" crossorigin="anonymous">
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-start mb-1">
+                                <h4 class="font-black text-slate-900 truncate text-sm leading-none group-hover:text-indigo-600 transition-colors">${m.name}</h4>
+                                <span class="text-[9px] text-slate-400 font-mono font-bold bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 shrink-0">${date}</span>
+                            </div>
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-[9px] font-mono bg-slate-100 border border-slate-200 text-slate-500 px-1.5 py-0.5 rounded inline-block">${m.membership_id}</span>
+                                ${badge}
+                                <span class="text-[10px] font-bold text-slate-500 truncate"><i class="fa-solid fa-phone text-[9px] mr-0.5 opacity-50"></i> ${m.phone}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 mt-auto overflow-hidden">
+                                <span class="bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-md text-[8px] uppercase font-bold tracking-wider truncate"><i class="fa-solid fa-location-crosshairs mr-0.5"></i> ${m.district} > ${m.unit}</span>
+                                <span class="bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md text-[8px] uppercase font-bold tracking-wider truncate">${m.committee_role}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+    } catch (err) {
+        console.error("Fetch Error:", err);
+        document.getElementById('vmLoader').classList.add('hidden');
+        spawnToastNotification("Failed to fetch members", "error");
+    }
+}
+
+function closeViewUnitMembersModal() {
+    const modal = document.getElementById('viewMembersModal');
+    modal.classList.add('opacity-0');
+    modal.querySelector('div').classList.add('scale-95');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 200);
+}
 // ==========================================
 // EXPORTS (CSV & PDF)
 // ==========================================

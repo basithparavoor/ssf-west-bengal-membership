@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     await fetchHierarchyAndDirectives();
+    
+    // Check for alerts applicable to the logged-in user
+    loadUserNotifications();
 });
 
 // Fetch territory matrix tables and directive rows concurrently
@@ -78,12 +81,12 @@ function switchGeographicAlertScope() {
     pSel.disabled = (lvl === 'Global' || lvl === 'District' || lvl === 'Block');
     uSel.disabled = (lvl !== 'Unit');
 
-    if(dSel.disabled) dSel.value = '';
-    if(bSel.disabled) bSel.value = '';
-    if(pSel.disabled) pSel.value = '';
-    if(uSel.disabled) uSel.value = '';
+    if(dSel.disabled) dSel.innerHTML = '<option value="">-- All Districts --</option>';
+    if(bSel.disabled) bSel.innerHTML = '<option value="">-- All Blocks --</option>';
+    if(pSel.disabled) pSel.innerHTML = '<option value="">-- All Panchayats --</option>';
+    if(uSel.disabled) uSel.innerHTML = '<option value="">-- All Units --</option>';
     
-    syncAlertFormLevels('district');
+    if(!dSel.disabled) populateAlertGeographicOptions();
 }
 
 function syncAlertFormLevels(lvl) {
@@ -112,7 +115,6 @@ function syncAlertFormLevels(lvl) {
 // ==========================================
 // CARD LIST RENDERING WITH FILTER PARAMETERS
 // ==========================================
-
 function populateFilterGeographicOptions() {
     const fDist = document.getElementById('filterDist');
     fDist.innerHTML = '<option value="">-- Filter District --</option>';
@@ -152,14 +154,11 @@ function applyFilters() {
     const fUnit = document.getElementById('filterUnit').value;
 
     filteredLogs = directiveLogs.filter(n => {
-        // Scope match check
         if (scope === 'Global' && n.target_level !== 'Global') return false;
         if (scope === 'Targeted' && n.target_level === 'Global') return false;
         
-        // Query match check
         if (q && !n.advice_text.toLowerCase().includes(q)) return false;
 
-        // Specific Field Node Checking (Evaluates to deepest dropdown selected)
         let targetLvl = null;
         let targetNode = null;
         
@@ -169,8 +168,8 @@ function applyFilters() {
         else if (fDist) { targetLvl = 'District'; targetNode = fDist; }
 
         if (targetLvl && targetNode) {
-            // Strict match required for the selected node scope
-            if (n.target_level !== targetLvl || n.target_node !== targetNode) return false;
+            // Allow 'ALL' alerts to pass the filter (e.g. searching for Malda will still show the "All Districts" alert)
+            if (n.target_level !== targetLvl || (n.target_node !== targetNode && n.target_node !== 'ALL')) return false;
         }
 
         return true;
@@ -232,23 +231,20 @@ async function commitRichTextAdvice() {
     const editId = document.getElementById('editTargetDirectiveId').value;
     const htmlPayload = quillEditor.root.innerHTML;
     
-    if(htmlPayload === '<p><br></p>' || !quillEditor.getText().trim()) {
-        spawnToastNotification("Content payload block missing parameters.", "error");
+    // Check if the payload is completely empty
+    if(htmlPayload === '<p><br></p>' || quillEditor.getText().trim() === '') {
+        spawnToastNotification("Alert content cannot be empty.", "error");
         return;
     }
     
-    // Resolve targeted node string
+    // Safely capture the correct targeted node - defaults to 'ALL' if left empty
     const lvl = document.getElementById('alertTargetLevel').value;
     let node = 'ALL';
-    if (lvl === 'District') node = document.getElementById('alertTargetDist').value;
-    if (lvl === 'Block') node = document.getElementById('alertTargetBlk').value;
-    if (lvl === 'Panchayat') node = document.getElementById('alertTargetPan').value;
-    if (lvl === 'Unit') node = document.getElementById('alertTargetUnit').value;
-
-    if(lvl !== 'Global' && !node) {
-        spawnToastNotification("Please select target territory node.", "error");
-        return;
-    }
+    
+    if (lvl === 'District') node = document.getElementById('alertTargetDist').value || 'ALL';
+    else if (lvl === 'Block') node = document.getElementById('alertTargetBlk').value || 'ALL';
+    else if (lvl === 'Panchayat') node = document.getElementById('alertTargetPan').value || 'ALL';
+    else if (lvl === 'Unit') node = document.getElementById('alertTargetUnit').value || 'ALL';
 
     toggleInteractionLoader(true, "Sending Alert...");
     const payload = { 
@@ -260,11 +256,9 @@ async function commitRichTextAdvice() {
     
     try {
         if(editId) {
-            // Update row override configuration
             await supa.from('directive_logs').update(payload).eq('id', editId);
             spawnToastNotification("Alert content updated.", "success");
         } else {
-            // New database entry
             await supa.from('directive_logs').insert([payload]);
             spawnToastNotification("Alert successfully sent.", "success");
         }
@@ -285,21 +279,42 @@ function launchDirectiveEdit(id) {
     document.getElementById('btnSubmitText').innerText = "Update Transmission";
     document.getElementById('btnCancelEdit').classList.remove('hidden');
 
-    // Populate scope elements
     document.getElementById('alertTargetLevel').value = target.target_level;
     switchGeographicAlertScope();
 
-    if(target.target_level === 'District') document.getElementById('alertTargetDist').value = target.target_node;
-    if(target.target_level === 'Block') {
-        document.getElementById('alertTargetDist').value = target.target_node; 
-        syncAlertFormLevels('district');
-        document.getElementById('alertTargetBlk').value = target.target_node;
-    }
-    if(target.target_level === 'Panchayat') {
-        document.getElementById('alertTargetPan').value = target.target_node;
-    }
-    if(target.target_level === 'Unit') {
-        document.getElementById('alertTargetUnit').value = target.target_node;
+    // Reconstruct the dropdown path if a specific node (not 'ALL') was targeted
+    if (target.target_node !== 'ALL') {
+        if(target.target_level === 'District') {
+            document.getElementById('alertTargetDist').value = target.target_node;
+        } 
+        else if(target.target_level === 'Block') {
+            const bObj = hierarchyData.blocks.find(x => x.block_name === target.target_node);
+            if (bObj) document.getElementById('alertTargetDist').value = bObj.district_name;
+            syncAlertFormLevels('district');
+            document.getElementById('alertTargetBlk').value = target.target_node;
+        } 
+        else if(target.target_level === 'Panchayat') {
+            const pObj = hierarchyData.panchayats.find(x => x.panchayat_name === target.target_node);
+            if (pObj) {
+                document.getElementById('alertTargetDist').value = pObj.district_name;
+                syncAlertFormLevels('district');
+                document.getElementById('alertTargetBlk').value = pObj.block_name;
+                syncAlertFormLevels('block');
+            }
+            document.getElementById('alertTargetPan').value = target.target_node;
+        } 
+        else if(target.target_level === 'Unit') {
+            const uObj = hierarchyData.units.find(x => x.unit_name === target.target_node);
+            if (uObj) {
+                document.getElementById('alertTargetDist').value = uObj.district_name;
+                syncAlertFormLevels('district');
+                document.getElementById('alertTargetBlk').value = uObj.block_name;
+                syncAlertFormLevels('block');
+                document.getElementById('alertTargetPan').value = uObj.panchayat_name;
+                syncAlertFormLevels('panchayat');
+            }
+            document.getElementById('alertTargetUnit').value = target.target_node;
+        }
     }
     
     quillEditor.root.innerHTML = target.advice_text;
@@ -317,7 +332,6 @@ function revertEditorFormState() {
     quillEditor.root.innerHTML = '';
 }
 
-// Custom UI Modal Deletion Methods
 function dropDirectiveSafely(id) {
     pendingDeleteId = id;
     document.getElementById('deleteModal').classList.remove('hidden');
@@ -346,11 +360,103 @@ async function confirmDeleteDirective() {
 }
 
 // ==========================================
+// ACCOUNT NOTIFICATIONS (BELL ICON LOGIC)
+// ==========================================
+async function loadUserNotifications() {
+    try {
+        // Fetch all alerts ordered by newest first
+        const { data, error } = await supa.from('directive_logs').select('*').order('created_at', { ascending: false });
+        if (error || !data) return;
+        
+        let myAlerts = [];
+        const role = STATE_CACHE.role;
+        const af = STATE_CACHE.assignedFields || {};
+        
+        // Admins see all alerts, normal users only see global + their specific territories
+        if (role === 'MasterAdmin' || role === 'Admin') {
+            myAlerts = data;
+        } else {
+            myAlerts = data.filter(a => {
+                if(a.target_level === 'Global') return true;
+                // If target_node is 'ALL', allow it through to any user assigned to that level
+                if(a.target_level === 'District' && (a.target_node === 'ALL' || af.districts?.includes(a.target_node))) return true;
+                if(a.target_level === 'Block' && (a.target_node === 'ALL' || af.blocks?.includes(a.target_node))) return true;
+                if(a.target_level === 'Panchayat' && (a.target_node === 'ALL' || af.panchayats?.includes(a.target_node))) return true;
+                if(a.target_level === 'Unit' && (a.target_node === 'ALL' || af.units?.includes(a.target_node))) return true;
+                return false;
+            });
+        }
+
+        const notifList = document.getElementById('notifList');
+        const badge = document.getElementById('notifBadge');
+        
+        if(myAlerts.length > 0) {
+            if(badge) badge.classList.remove('hidden');
+            if(notifList) notifList.innerHTML = '';
+            
+            myAlerts.forEach(a => {
+                // Strip HTML tags to make a clean plain-text snippet for the dropdown
+                let snippet = a.advice_text.replace(/<[^>]*>?/gm, '').substring(0, 60) + '...';
+                
+                if(notifList) notifList.innerHTML += `
+                    <div onclick="openNotifReader('${a.id}')" class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[8px] font-black uppercase bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded tracking-widest">${a.target_level === 'Global' ? 'Global Alert' : a.target_node}</span>
+                            <span class="text-[8px] text-slate-400 font-bold ml-auto">${new Date(a.created_at || Date.now()).toLocaleDateString()}</span>
+                        </div>
+                        <p class="text-[10px] text-slate-600 font-medium leading-tight">${snippet}</p>
+                    </div>
+                `;
+            });
+            // Store globally so the reading modal can access the full HTML text
+            window.myActiveAlerts = myAlerts;
+        } else {
+            if(badge) badge.classList.add('hidden');
+            if(notifList) notifList.innerHTML = '<p class="text-xs text-slate-400 font-bold text-center py-6">You have no new alerts.</p>';
+        }
+    } catch (e) {
+        console.error("Failed to load notifications", e);
+    }
+}
+
+window.openNotifReader = function(id) {
+    const a = window.myActiveAlerts.find(x => x.id == id);
+    if(!a) return;
+    
+    // Close dropdown
+    const dropdown = document.getElementById('notificationDropdown');
+    if(dropdown) dropdown.classList.add('hidden');
+    
+    const modalHTML = `
+    <div id="notifReaderModal" class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-[2rem] shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-fade-in-up">
+            <div class="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-lg"><i class="fa-solid fa-bullhorn"></i></div>
+                    <div>
+                        <h3 class="text-sm font-black text-slate-900 uppercase tracking-widest font-mono">Official Alert</h3>
+                        <p class="text-[10px] text-slate-500 font-bold">${a.target_level === 'Global' ? 'Global Broadcast' : `Target: ${a.target_node}`}</p>
+                    </div>
+                </div>
+                <button onclick="document.getElementById('notifReaderModal').remove()" class="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scrollbar flex-1 ql-editor text-sm text-slate-700 bg-white">
+                ${a.advice_text}
+            </div>
+            <div class="bg-slate-50 p-4 border-t border-slate-100 flex justify-between items-center">
+                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Sent by: ${a.created_by}</span>
+                <button onclick="document.getElementById('notifReaderModal').remove()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-colors uppercase tracking-wider">Close Alert</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+// ==========================================
 // DYNAMIC LOGOUT VERIFICATION MODAL
 // ==========================================
 
 function promptLogout() {
-    // Check if modal exists to prevent duplicating it on multiple clicks
     if (!document.getElementById('dynamicLogoutModal')) {
         const modalHTML = `
         <div id="dynamicLogoutModal" class="hidden fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm transition-opacity">
@@ -368,12 +474,8 @@ function promptLogout() {
                 </div>
             </div>
         </div>`;
-        
-        // Inject into the page
         document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
-    
-    // Show the modal
     document.getElementById('dynamicLogoutModal').classList.remove('hidden');
 }
 

@@ -79,6 +79,20 @@ function enforceSession() {
         return false;
     }
 
+    // --- NEW: KICK OUT UNIT OPERATORS FROM UNITS.HTML ---
+    if (STATE_CACHE.role === 'UnitAdmin') {
+        if (currentPath.includes('units.html')) {
+            window.location.href = 'members.html';
+            return false;
+        }
+        // Hide the Units navigation buttons globally
+        const navUnits = document.getElementById('nav-units');
+        const mobUnits = document.getElementById('mob-units');
+        if (navUnits) navUnits.style.display = 'none';
+        if (mobUnits) mobUnits.style.display = 'none';
+    }
+    // ----------------------------------------------------
+
     if (isGlobalController) {
         document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden-force'));
     } else {
@@ -171,3 +185,104 @@ function togglePasswordVisibility(inputId, btn) {
         icon.classList.add('fa-eye');
     }
 }
+
+// ==========================================
+// GLOBAL ALERT NOTIFICATIONS 
+// ==========================================
+async function loadGlobalUserNotifications() {
+    // Only run if the user is logged in and the page has a notification bell
+    if (!window.supa || !window.STATE_CACHE || !STATE_CACHE.user) return; 
+    if (!document.getElementById('notifBadge')) return;
+
+    try {
+        const { data, error } = await supa.from('directive_logs').select('*').order('created_at', { ascending: false });
+        if (error || !data) return;
+        
+        let myAlerts = [];
+        const role = STATE_CACHE.role;
+        const af = STATE_CACHE.assignedFields || {};
+        
+        // Master & Admins see everything, sub-users only see global + their specific zones
+        if (role === 'MasterAdmin' || role === 'Admin') {
+            myAlerts = data;
+        } else {
+            myAlerts = data.filter(a => {
+                if(a.target_level === 'Global') return true;
+                if(a.target_level === 'District' && (a.target_node === 'ALL' || af.districts?.includes(a.target_node))) return true;
+                if(a.target_level === 'Block' && (a.target_node === 'ALL' || af.blocks?.includes(a.target_node))) return true;
+                if(a.target_level === 'Panchayat' && (a.target_node === 'ALL' || af.panchayats?.includes(a.target_node))) return true;
+                if(a.target_level === 'Unit' && (a.target_node === 'ALL' || af.units?.includes(a.target_node))) return true;
+                return false;
+            });
+        }
+
+        const notifList = document.getElementById('notifList');
+        const badge = document.getElementById('notifBadge');
+        
+        if(myAlerts.length > 0) {
+            badge.classList.remove('hidden');
+            notifList.innerHTML = '';
+            
+            myAlerts.forEach(a => {
+                // Strip HTML tags for the short snippet preview
+                let snippet = a.advice_text.replace(/<[^>]*>?/gm, '').substring(0, 60) + '...';
+                
+                notifList.innerHTML += `
+                    <div onclick="openGlobalNotifReader('${a.id}')" class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[8px] font-black uppercase bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded tracking-widest">${a.target_level === 'Global' ? 'Global Alert' : a.target_node}</span>
+                            <span class="text-[8px] text-slate-400 font-bold ml-auto">${new Date(a.created_at || Date.now()).toLocaleDateString()}</span>
+                        </div>
+                        <p class="text-[10px] text-slate-600 font-medium leading-tight">${snippet}</p>
+                    </div>
+                `;
+            });
+            window.myActiveGlobalAlerts = myAlerts;
+        } else {
+            badge.classList.add('hidden');
+            notifList.innerHTML = '<p class="text-xs text-slate-400 font-bold text-center py-6">You have no new alerts.</p>';
+        }
+    } catch (e) {
+        console.error("Failed to load notifications", e);
+    }
+}
+
+window.openGlobalNotifReader = function(id) {
+    const a = window.myActiveGlobalAlerts.find(x => x.id == id);
+    if(!a) return;
+    
+    document.getElementById('notificationDropdown').classList.add('hidden');
+    
+    // Quick visual CSS fix in case the page doesn't have Quill.js loaded
+    const qlStyles = `<style>.global-ql-reader img{border-radius:0.75rem;max-width:100%;margin:10px 0;} .global-ql-reader iframe{border-radius:0.75rem;width:100%;height:280px;margin:10px 0;}</style>`;
+    
+    const modalHTML = `
+    ${qlStyles}
+    <div id="notifReaderModal" class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-[2rem] shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-fade-in-up">
+            <div class="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-lg"><i class="fa-solid fa-bullhorn"></i></div>
+                    <div>
+                        <h3 class="text-sm font-black text-slate-900 uppercase tracking-widest font-mono">Official Alert</h3>
+                        <p class="text-[10px] text-slate-500 font-bold">${a.target_level === 'Global' ? 'Global Broadcast' : `Target: ${a.target_node}`}</p>
+                    </div>
+                </div>
+                <button onclick="document.getElementById('notifReaderModal').remove()" class="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scrollbar flex-1 text-sm text-slate-700 bg-white global-ql-reader">
+                ${a.advice_text}
+            </div>
+            <div class="bg-slate-50 p-4 border-t border-slate-100 flex justify-between items-center">
+                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Sent by: ${a.created_by}</span>
+                <button onclick="document.getElementById('notifReaderModal').remove()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-colors uppercase tracking-wider">Close Alert</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+// Automatically trigger the notification fetch 1 second after the page finishes loading
+window.addEventListener('load', () => {
+    setTimeout(loadGlobalUserNotifications, 1000); 
+});
