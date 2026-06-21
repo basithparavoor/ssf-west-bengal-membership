@@ -50,11 +50,11 @@ function renderVerifiedCard(m) {
     const verifyUrl = `${host !== "null" ? host : "https://yourwebsite.com"}${dirPath}/verify.html?id=${m.membership_id}`;
     const qrApiUrl = `https://quickchart.io/qr?text=${encodeURIComponent(verifyUrl)}&size=300&margin=0`;
 
-    // Overriding the outer box so the ID floats perfectly 
+    // Clear default styling so the card floats perfectly
     container.style.background = 'transparent';
     container.style.border = 'none';
     container.style.boxShadow = 'none';
-    container.className = "w-full flex flex-col items-center mt-6 mb-4 overflow-visible";
+    container.className = "w-full flex flex-col items-center mt-6 mb-6 overflow-visible";
 
     container.innerHTML = `
         <div class="flex gap-3 w-full max-w-[400px] mb-6">
@@ -75,19 +75,27 @@ function renderVerifiedCard(m) {
                     <div class="truncate tracking-widest">${m.phone}</div>
                 </div>
                 
-                <div class="absolute top-[80px] right-[40px] w-[108px] h-[135px] z-10 overflow-hidden rounded-xl">
-                    <img src="${m.photo_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}" crossorigin="anonymous" class="w-full h-full object-cover bg-white">
+                <div class="absolute top-[80px] right-[40px] w-[108px] h-[135px] z-10 overflow-hidden rounded-xl bg-white">
+                    <img src="${m.photo_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}" crossorigin="anonymous" class="w-full h-full object-cover">
                 </div>
 
-                <div class="absolute top-[241px] right-[54px] w-[85px] h-[85px] z-10">
-                    <img src="${qrApiUrl}" crossorigin="anonymous" class="w-full h-full object-contain mix-blend-multiply">
+                <div class="absolute top-[241px] right-[54px] w-[85px] h-[85px] z-10 bg-white">
+                    <img src="${qrApiUrl}" crossorigin="anonymous" class="w-full h-full object-contain">
                 </div>
             </div>
 
             <div id="preview-back-card" class="hidden w-[600px] h-[380px] relative overflow-hidden flex flex-col box-border shadow-xl rounded-2xl shrink-0 border border-slate-300 bg-white">
                 <img src="back.png" class="absolute inset-0 w-full h-full object-cover z-0" onerror="this.style.display='none'">
             </div>
+        </div>
 
+        <div class="w-full max-w-[400px] mt-2 flex flex-col gap-3">
+            <button onclick="downloadDigitalCardAsPDF(event)" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-4 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 text-xs uppercase tracking-wider">
+                <i class="fa-solid fa-lock text-sm"></i> Download Secure PDF
+            </button>
+            <a href="portal.html" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-xs uppercase tracking-wider">
+                <i class="fa-solid fa-arrow-left"></i> Return to Portal
+            </a>
         </div>
     `;
 }
@@ -116,6 +124,9 @@ window.downloadDigitalCardAsPDF = function(event) {
     promptDownloadDigitalCard();
 };
 
+// ==========================================
+// PASSWORD POPUP MODAL
+// ==========================================
 function promptDownloadDigitalCard() {
     const m = window.currentVerifyMember;
     if(!m) return;
@@ -153,6 +164,9 @@ function promptDownloadDigitalCard() {
     document.body.insertAdjacentHTML('beforeend', modalHTML);
 }
 
+// ==========================================
+// BACKGROUND-SAFE PDF GENERATOR
+// ==========================================
 async function executePDFDownload() {
     const m = window.currentVerifyMember;
     if(!m || !window.jspdf) {
